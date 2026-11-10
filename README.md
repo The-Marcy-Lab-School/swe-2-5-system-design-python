@@ -91,6 +91,11 @@ This assignment has three sections:
 2. Modify
 3. Debug
 
+**The diagram work is in the short response repo, not here.** Drawing a class
+diagram and defending which way a reference points are 2.8's objectives, and no
+test can grade either, so they are asked there. Do that half first — the code
+here is the three shapes a diagram like that is made of.
+
 <details>
 <summary><strong>Ideas to look for</strong> — the ideas behind the questions, if you want them up front</summary>
 
