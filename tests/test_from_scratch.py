@@ -28,6 +28,44 @@ def assigns_in_class_body(cls):
             names.add(node.target.id)
     return names
 
+def code_of(func):
+    """A function's source with its comments and docstring removed.
+
+    A test that bans a substring has to look at code only. Reading raw source
+    fails a fellow who mentions the banned thing in a comment -- "no isinstance
+    here" would fail a check for "isinstance" -- which is a correct answer
+    rejected for its prose.
+    """
+    source = textwrap.dedent(inspect.getsource(func))
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module)):
+            body = node.body
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    return ast.unparse(ast.fix_missing_locations(tree))
+
+def as_written(module, name, cls=None):
+    """One function's body as it appears in the file, with decorators ignored.
+
+    Reading a decorated function at runtime gives you the wrapper, so its own
+    body is out of reach. Parsing the file instead shows what the fellow wrote,
+    and works whatever shape their decorator took -- a closure, a class with
+    __call__, or functools.wraps on top of either.
+    """
+    tree = ast.parse(inspect.getsource(module))
+    scope = tree.body
+    if cls is not None:
+        scope = next(n.body for n in tree.body
+                     if isinstance(n, ast.ClassDef) and n.name == cls)
+    found = next((n for n in scope
+                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                  and n.name == name), None)
+    assert found is not None, f"Keep a function named {name}."
+    return "\n".join(ast.unparse(stmt) for stmt in found.body)
+
 
 from from_scratch import Bike, BikeShare, Member, Rental, Repair, Station
 
@@ -97,11 +135,13 @@ def share():
 def test_bikeshare_owns_its_collections_non_publicly():
     """BikeShare - both lists start empty and non-public on the instance"""
     system = BikeShare()
-    stored = attributes_set_on(system)
+    lists = {name: value for name, value in vars(system).items()
+             if isinstance(value, list)}
 
-    assert len(stored) == 2, "Start exactly two collections in __init__."
-    assert all(name.startswith("_") for name in stored), \
+    assert len(lists) == 2, "Start two collections in __init__, one of each kind."
+    assert all(name.startswith("_") for name in lists), \
         "Both collections are non-public, so callers go through the methods."
+    assert all(value == [] for value in lists.values()), "Both start empty."
 
 
 def test_bikeshare_reports_what_can_be_rented():
